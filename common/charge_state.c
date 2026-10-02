@@ -421,6 +421,17 @@ __overridable int board_should_charger_bypass(void)
 	return false;
 }
 
+static int clamp_charge_voltage(int voltage)
+{
+	int v_max = battery_get_info()->voltage_max;
+
+	if (voltage > v_max) {
+		voltage = v_max;
+	}
+
+	return charger_closest_voltage(voltage);
+}
+
 int charge_request(bool use_curr, bool is_full)
 {
 	int r1 = EC_SUCCESS, r2 = EC_SUCCESS, r3 = EC_SUCCESS, r4 = EC_SUCCESS;
@@ -439,7 +450,7 @@ int charge_request(bool use_curr, bool is_full)
 		 * otherwise the BGATE FET body diode would conduct and
 		 * discharge the battery.
 		 */
-		voltage = charger_closest_voltage(
+		voltage = clamp_charge_voltage(
 			curr.batt.voltage + charger_get_info()->voltage_step);
 		/* If the battery is full, request the max voltage. */
 		if (is_full)
@@ -1383,9 +1394,9 @@ static void adjust_requested_vi(const struct charger_info *const info,
 	if (curr.requested_current > user_current_limit)
 		curr.requested_current = user_current_limit;
 
-	/* Round to valid values */
-	curr.requested_voltage =
-		charger_closest_voltage(curr.requested_voltage);
+	/* Clamp to battery chemistry maximum voltage and round to valid value
+	 */
+	curr.requested_voltage = clamp_charge_voltage(curr.requested_voltage);
 	curr.requested_current =
 		charger_closest_current(curr.requested_current);
 
@@ -1414,7 +1425,7 @@ static void adjust_requested_vi(const struct charger_info *const info,
 					local_state.manual_current;
 		}
 	} else if (!IS_ENABLED(CONFIG_CHARGER_MAINTAIN_VBAT)) {
-		curr.requested_voltage = charger_closest_voltage(
+		curr.requested_voltage = clamp_charge_voltage(
 			curr.batt.voltage + info->voltage_step);
 		curr.requested_current = -1;
 		/*
