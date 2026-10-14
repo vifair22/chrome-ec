@@ -67,13 +67,21 @@ board_vivaldi_keybd_config(void)
  * - Search: alone, a tap of Caps Lock; held with another key, Super. The
  *   choice is made by whether another key goes down before Search comes
  *   up, not by a timer, so fast typing cannot turn Super into Caps.
+ * - Search+Backspace: Delete, with no Super, since the keyboard has no
+ *   Delete key. Every other Search chord stays Super (window tiling on
+ *   Super+arrows is in constant use). Backspace's code is rewritten rather
+ *   than a Delete injected, so the 8042 typematic repeats Delete as it
+ *   would a real key; a Super already sent for an earlier chord is
+ *   released first, and sent again by the next Search chord.
  */
 #define SCANCODE_LEFT_SHIFT_SET2 0x0012
 #define SCANCODE_RIGHT_SHIFT_SET2 0x0059
+#define SCANCODE_BACKSPACE_SET2 0x0066
+#define SCANCODE_DELETE_SET2 0xe071
 
 static bool left_shift, right_shift;
 static uint16_t top_row_sent[MAX_TOP_ROW_KEYS];
-static bool search_down, search_chorded;
+static bool search_down, search_chorded, super_sent, delete_down;
 
 static void shifts_to_host(int8_t pressed)
 {
@@ -96,16 +104,37 @@ __override enum ec_error_list keyboard_scancode_callback(uint16_t *make_code,
 			return EC_ERROR_UNIMPLEMENTED; /* held back */
 		}
 		search_down = false;
-		if (search_chorded)
+		if (super_sent) {
+			super_sent = false;
 			return EC_SUCCESS; /* the Super break */
+		}
+		if (search_chorded)
+			return EC_ERROR_UNIMPLEMENTED; /* Delete only */
 		keyboard_inject_scancode(SCANCODE_CAPSLOCK, 1);
 		keyboard_inject_scancode(SCANCODE_CAPSLOCK, 0);
 		return EC_ERROR_UNIMPLEMENTED;
 	}
 
-	if (pressed && search_down && !search_chorded) {
+	if (code == SCANCODE_BACKSPACE_SET2 && (delete_down ||
+						 (pressed && search_down))) {
+		if (pressed) {
+			search_chorded = true;
+			if (super_sent) {
+				keyboard_inject_scancode(SCANCODE_LEFT_WIN, 0);
+				super_sent = false;
+			}
+		}
+		delete_down = pressed;
+		*make_code = SCANCODE_DELETE_SET2;
+		return EC_SUCCESS;
+	}
+
+	if (pressed && search_down) {
 		search_chorded = true;
-		keyboard_inject_scancode(SCANCODE_LEFT_WIN, 1);
+		if (!super_sent) {
+			keyboard_inject_scancode(SCANCODE_LEFT_WIN, 1);
+			super_sent = true;
+		}
 	}
 
 	if (code == SCANCODE_LEFT_SHIFT_SET2)
