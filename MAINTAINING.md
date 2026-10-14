@@ -54,7 +54,7 @@ What is carried (`git log base..c14`):
 |---|---|
 | MrChromebox | TBT5 compatibility; hibernated S4 to G3; the Vivaldi top-row command (`EC_CMD_KEYBD_TOP_ROW`, setup's "Keyboard Top Row Mode"); primus fan-table bounds; two battery static-info fixes; brya's host sleep timeout to infinite (no 10 s hang reset in s2idle); brya fan tables |
 | Not taken from MrChromebox | his version string (ours replaces it); mithrax's keyboard backlight (another board) |
-| Ours | the version string (`vifair22/chrome-ec`, FWID `<board>_16238.2+c14`); the C14 keyboard layout (Shift flips the top row, Search taps Caps Lock and holds Super); `util/c14-build.sh`; this file |
+| Ours | the version string (`vifair22/chrome-ec`, FWID `<board>_16238.2+c14`); the C14 keyboard layout (Shift flips the top row, Search taps Caps Lock and holds Super, Search+Backspace is Delete); `util/c14-build.sh`; this file |
 
 ## Tags
 
