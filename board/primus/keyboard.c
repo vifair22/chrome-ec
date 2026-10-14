@@ -5,6 +5,9 @@
 
 #include "common.h"
 #include "ec_commands.h"
+#include "keyboard_8042.h"
+#include "keyboard_8042_sharedlib.h"
+#include "keyboard_protocol.h"
 #include "keyboard_scan.h"
 #include "timer.h"
 
@@ -52,4 +55,95 @@ __override const struct ec_response_keybd_config *
 board_vivaldi_keybd_config(void)
 {
 	return &primus_kb;
+}
+
+/*
+ * The layout the C14's owner asked for, on top of the Vivaldi top row:
+ *
+ * - Top row: the mode chosen in firmware setup (KEYBD_TOP_ROW) is the
+ *   default; held Shift gives the other mode, with Shift released around
+ *   the key so the host sees a plain action key (or F-key). Each key's
+ *   release sends what its press sent, whatever Shift did in between.
+ * - Search: alone, a tap of Caps Lock; held with another key, Super. The
+ *   choice is made by whether another key goes down before Search comes
+ *   up, not by a timer, so fast typing cannot turn Super into Caps.
+ */
+#define SCANCODE_LEFT_SHIFT_SET2 0x0012
+#define SCANCODE_RIGHT_SHIFT_SET2 0x0059
+
+static bool left_shift, right_shift;
+static uint16_t top_row_sent[MAX_TOP_ROW_KEYS];
+static bool search_down, search_chorded;
+
+static void shifts_to_host(int8_t pressed)
+{
+	if (left_shift)
+		keyboard_inject_scancode(SCANCODE_LEFT_SHIFT_SET2, pressed);
+	if (right_shift)
+		keyboard_inject_scancode(SCANCODE_RIGHT_SHIFT_SET2, pressed);
+}
+
+__override enum ec_error_list keyboard_scancode_callback(uint16_t *make_code,
+							 int8_t pressed)
+{
+	uint16_t code = *make_code;
+	int i;
+
+	if (code == SCANCODE_LEFT_WIN) {
+		if (pressed) {
+			search_down = true;
+			search_chorded = false;
+			return EC_ERROR_UNIMPLEMENTED; /* held back */
+		}
+		search_down = false;
+		if (search_chorded)
+			return EC_SUCCESS; /* the Super break */
+		keyboard_inject_scancode(SCANCODE_CAPSLOCK, 1);
+		keyboard_inject_scancode(SCANCODE_CAPSLOCK, 0);
+		return EC_ERROR_UNIMPLEMENTED;
+	}
+
+	if (pressed && search_down && !search_chorded) {
+		search_chorded = true;
+		keyboard_inject_scancode(SCANCODE_LEFT_WIN, 1);
+	}
+
+	if (code == SCANCODE_LEFT_SHIFT_SET2)
+		left_shift = pressed;
+	else if (code == SCANCODE_RIGHT_SHIFT_SET2)
+		right_shift = pressed;
+
+	i = vivaldi_top_row_index(code);
+	if (i < 0) {
+		/* A top-row key whose code a mode change moved: match by
+		 * what its press sent. */
+		for (i = 0; i < MAX_TOP_ROW_KEYS; i++)
+			if (!pressed && top_row_sent[i] &&
+			    vivaldi_other_scancode(i) == code)
+				break;
+		if (i == MAX_TOP_ROW_KEYS)
+			return EC_SUCCESS;
+	}
+
+	if (pressed) {
+		uint16_t other = vivaldi_other_scancode(i);
+
+		if ((left_shift || right_shift) && other) {
+			shifts_to_host(0);
+			keyboard_inject_scancode(other, 1);
+			shifts_to_host(1);
+			top_row_sent[i] = other;
+			return EC_ERROR_UNIMPLEMENTED;
+		}
+		top_row_sent[i] = code;
+		return EC_SUCCESS;
+	}
+
+	if (top_row_sent[i] && top_row_sent[i] != code) {
+		keyboard_inject_scancode(top_row_sent[i], 0);
+		top_row_sent[i] = 0;
+		return EC_ERROR_UNIMPLEMENTED;
+	}
+	top_row_sent[i] = 0;
+	return EC_SUCCESS;
 }

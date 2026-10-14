@@ -209,6 +209,40 @@ static int vivaldi_apply_top_row_mode(enum keybd_top_row_mode mode)
 	return EC_SUCCESS;
 }
 
+static uint16_t vivaldi_scancode(int i, enum keybd_top_row_mode mode)
+{
+	enum action_key key;
+
+	if (!vivaldi_keybd || i < 0 || i >= vivaldi_keybd->num_top_row_keys ||
+	    i >= MAX_TOP_ROW_KEYS)
+		return 0;
+	key = vivaldi_keybd->action_keys[i];
+	if (key == TK_ABSENT)
+		return 0;
+	return mode == KEYBD_TOP_ROW_FUNCTION ? function_scancodes[i] :
+						action_scancodes[key];
+}
+
+int vivaldi_top_row_index(uint16_t code)
+{
+	int i;
+
+	if (!code || !vivaldi_keybd)
+		return -1;
+	for (i = 0; i < vivaldi_keybd->num_top_row_keys && i < MAX_TOP_ROW_KEYS;
+	     i++)
+		if (vivaldi_scancode(i, top_row_mode) == code)
+			return i;
+	return -1;
+}
+
+uint16_t vivaldi_other_scancode(int i)
+{
+	return vivaldi_scancode(i, top_row_mode == KEYBD_TOP_ROW_FUNCTION ?
+					   KEYBD_TOP_ROW_ACTION :
+					   KEYBD_TOP_ROW_FUNCTION);
+}
+
 static enum ec_status
 keybd_top_row_command(struct host_cmd_handler_args *args)
 {

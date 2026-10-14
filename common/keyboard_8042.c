@@ -508,6 +508,20 @@ test_mockable void keyboard_state_changed(int row, int col, int is_pressed)
 	}
 }
 
+void keyboard_inject_scancode(uint16_t make_code, int8_t pressed)
+{
+	uint8_t scan_code[MAX_SCAN_CODE_LEN];
+	int32_t len = 0;
+	enum scancode_set_list code_set = acting_code_set(scancode_set);
+
+	if (!make_code || !keystroke_enabled ||
+	    !is_supported_code_set(code_set))
+		return;
+	scancode_bytes(make_code, pressed, code_set, scan_code, &len);
+	if (len > 0)
+		i8042_send_to_host(len, scan_code, CHAN_KBD, 0);
+}
+
 static void keystroke_enable(int enable)
 {
 	if (!keystroke_enabled && enable)

@@ -50,6 +50,17 @@ enum ec_error_list keyboard_scancode_callback(uint16_t *make_code,
 					      int8_t pressed);
 
 /**
+ * Send a key's make or break code to the host, in the scancode set the
+ * host uses, from keyboard_scancode_callback(). For a callback that has to
+ * send more than the one code it may rewrite: a modifier released around
+ * a key, or a key held back and sent on release.
+ *
+ * @param make_code	Scan code (set 2) of the key.
+ * @param pressed	Make (1) or break (0) code.
+ */
+void keyboard_inject_scancode(uint16_t make_code, int8_t pressed);
+
+/**
  * Send aux data to host from interrupt context.
  *
  * @param data	Aux response to send to host.

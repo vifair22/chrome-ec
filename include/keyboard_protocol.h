@@ -71,6 +71,18 @@ int board_has_keyboard_backlight(void);
  */
 __override_proto const struct ec_response_keybd_config *
 board_vivaldi_keybd_config(void);
+
+/**
+ * The index of the top-row key whose scancode, in the selected top-row
+ * mode, is code; -1 when code is not a top-row key's.
+ */
+int vivaldi_top_row_index(uint16_t code);
+
+/**
+ * The scancode top-row key i sends in the mode not selected (its action
+ * code in function mode, its F-key in action mode); 0 when it has none.
+ */
+uint16_t vivaldi_other_scancode(int i);
 #endif
 
 #ifdef __cplusplus

@@ -94,6 +94,8 @@
 
 /* Keyboard features */
 #define CONFIG_KEYBOARD_REFRESH_ROW3
+/* The C14 layout: Shift flips the top row, Search taps Caps (keyboard.c) */
+#define CONFIG_KEYBOARD_SCANCODE_CALLBACK
 
 /* I2C Bus Configuration */
 
