@@ -46,8 +46,18 @@
 
 static int tick;
 
+/*
+ * The lid logo (the red dot on the A cover) is its own LED to the host,
+ * under EC_LED_ID_LEFT_LED: the host command has no logo ID, and Linux's
+ * cros_ec LED driver knows only the existing IDs, so it appears there as
+ * chromeos:red:left. Under EC control it does what the power LED does, as
+ * Google's code always had it; under host control each moves alone, so a
+ * host flashing the power LED leaves the logo be, and the reverse.
+ */
+#define LOGO_LED EC_LED_ID_LEFT_LED
+
 const enum ec_led_id supported_led_ids[] = { EC_LED_ID_BATTERY_LED,
-					     EC_LED_ID_POWER_LED };
+					     EC_LED_ID_POWER_LED, LOGO_LED };
 const int supported_led_ids_count = ARRAY_SIZE(supported_led_ids);
 
 static void led_set_color_battery(enum ec_led_colors color)
@@ -94,17 +104,19 @@ static void led_set_battery(void)
 	}
 }
 
+/* Duty for whichever of the power LED and the logo the EC controls. */
+static void led_set_duty_auto(int duty)
+{
+	if (led_auto_control_is_enabled(EC_LED_ID_POWER_LED))
+		pwm_set_duty(PWM_CH_LED4, duty);
+	if (led_auto_control_is_enabled(LOGO_LED))
+		pwm_set_duty(PWM_CH_TKP_A_LED_N, duty);
+}
+
 void led_set_color_power(int onoff_status)
 {
-	/* primus logo led and power led have same behavior. */
-	if (onoff_status == LED_ON) {
-		pwm_set_duty(PWM_CH_TKP_A_LED_N, LED_ON_LVL);
-		pwm_set_duty(PWM_CH_LED4, LED_ON_LVL);
-	} else {
-		/* LED_OFF and unsupported colors */
-		pwm_set_duty(PWM_CH_TKP_A_LED_N, LED_OFF_LVL);
-		pwm_set_duty(PWM_CH_LED4, LED_OFF_LVL);
-	}
+	/* LED_OFF and unsupported colors are off. */
+	led_set_duty_auto(onoff_status == LED_ON ? LED_ON_LVL : LED_OFF_LVL);
 }
 
 #define AC_DISCONNECTED (-1)
@@ -143,6 +155,9 @@ void led_get_brightness_range(enum ec_led_id led_id, uint8_t *brightness_range)
 		brightness_range[EC_LED_COLOR_WHITE] = 1;
 	} else if (led_id == EC_LED_ID_POWER_LED) {
 		brightness_range[EC_LED_COLOR_RED] = 1;
+	} else if (led_id == LOGO_LED) {
+		/* PWM, so the host may dim it: brightness is the duty. */
+		brightness_range[EC_LED_COLOR_RED] = LED_ON_LVL;
 	}
 }
 
@@ -156,10 +171,12 @@ int led_set_brightness(enum ec_led_id led_id, const uint8_t *brightness)
 		else
 			led_set_color_battery(LED_OFF);
 	} else if (led_id == EC_LED_ID_POWER_LED) {
-		if (brightness[EC_LED_COLOR_RED] != 0)
-			led_set_color_power(LED_ON);
-		else
-			led_set_color_power(LED_OFF);
+		pwm_set_duty(PWM_CH_LED4, brightness[EC_LED_COLOR_RED] ?
+						  LED_ON_LVL :
+						  LED_OFF_LVL);
+	} else if (led_id == LOGO_LED) {
+		pwm_set_duty(PWM_CH_TKP_A_LED_N,
+			     MIN(brightness[EC_LED_COLOR_RED], LED_ON_LVL));
 	}
 
 	return EC_SUCCESS;
@@ -188,26 +205,19 @@ static void suspend_led_update(void)
 		if (tick <= TICKS_STEP2_DIMMER) {
 			/* increase 5 duty every 50ms until PWM=100
 			 * enter here 20 times, total duartion is 1sec
-			 * A-cover and power button led are shared same
-			 * behavior.
+			 * The A-cover logo and the power button LED breathe
+			 * together, each while the EC controls it.
 			 */
-			pwm_set_duty(PWM_CH_TKP_A_LED_N,
-				     tick * LED_BAT_S3_PWM_RESCALE);
-			pwm_set_duty(PWM_CH_LED4,
-				     tick * LED_BAT_S3_PWM_RESCALE);
+			led_set_duty_auto(tick * LED_BAT_S3_PWM_RESCALE);
 			crec_msleep(LED_BAT_S3_TICK_MS);
 		} else if (tick <= TICKS_STEP3_OFF) {
 			/* decrease 5 duty every 50ms until PWM=0
 			 * enter here 20 times, total duartion is 1sec
-			 * A-cover and power button led are shared same
-			 * behavior.
+			 * The A-cover logo and the power button LED breathe
+			 * together, each while the EC controls it.
 			 */
-			pwm_set_duty(PWM_CH_TKP_A_LED_N,
-				     (TICKS_STEP3_OFF - tick) *
-					     LED_BAT_S3_PWM_RESCALE);
-			pwm_set_duty(PWM_CH_LED4,
-				     (TICKS_STEP3_OFF - tick) *
-					     LED_BAT_S3_PWM_RESCALE);
+			led_set_duty_auto((TICKS_STEP3_OFF - tick) *
+					  LED_BAT_S3_PWM_RESCALE);
 			crec_msleep(LED_BAT_S3_TICK_MS);
 		} else {
 			tick = TICKS_STEP1_BRIGHTER;
@@ -235,7 +245,8 @@ void logoled_task(void *u)
 		}
 
 		if (evt & LED_EVENT_200MS_TICK) {
-			if (led_auto_control_is_enabled(EC_LED_ID_POWER_LED))
+			if (led_auto_control_is_enabled(EC_LED_ID_POWER_LED) ||
+			    led_auto_control_is_enabled(LOGO_LED))
 				led_set_power();
 			if (led_auto_control_is_enabled(EC_LED_ID_BATTERY_LED))
 				led_set_battery();
