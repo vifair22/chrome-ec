@@ -18,7 +18,8 @@
  * (mb/google/brya/variants/primus) sends the same number and layout; keep
  * them in step.
  */
-#define EC_CMD_PRIMUS_FAN_PROFILE EC_PRIVATE_HOST_COMMAND_VALUE(0x01)
+/* Offset into the board-specific range: the command is 0x3E01. */
+#define PRIMUS_PRIVATE_CMD_FAN_PROFILE 0x01
 enum primus_fan_profile {
 	PRIMUS_FAN_PROFILE_QUIET = 0,
 	PRIMUS_FAN_PROFILE_BALANCED = 1,
@@ -327,5 +328,6 @@ static enum ec_status host_cmd_fan_profile(struct host_cmd_handler_args *args)
 	args->response_size = sizeof(*r);
 	return EC_RES_SUCCESS;
 }
-DECLARE_HOST_COMMAND(EC_CMD_PRIMUS_FAN_PROFILE, host_cmd_fan_profile,
-		     EC_VER_MASK(0));
+/* The offset must be a literal: the macro pastes it into a symbol name. */
+DECLARE_PRIVATE_HOST_COMMAND(0x01, host_cmd_fan_profile, EC_VER_MASK(0));
+BUILD_ASSERT(PRIMUS_PRIVATE_CMD_FAN_PROFILE == 0x01);
