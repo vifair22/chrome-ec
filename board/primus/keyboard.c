@@ -73,11 +73,20 @@ board_vivaldi_keybd_config(void)
  *   than a Delete injected, so the 8042 typematic repeats Delete as it
  *   would a real key; a Super already sent for an earlier chord is
  *   released first, and sent again by the next Search chord.
+ * - Lock: the screen-lock key. Google's code gives it set 2 0x2f (board.c
+ *   copies it to T15 as well), which Linux's atkbd maps to KEY_SLEEP, so
+ *   the key labelled Lock suspended the machine. Set 2 0xe05d translates
+ *   to set 1 e0 2b, which atkbd maps to KEY_SCREENLOCK with no hwdb entry,
+ *   and desktops bind that to locking the session. Rewritten here rather
+ *   than in the matrix so the typematic and the Search chord treat it
+ *   like any key.
  */
 #define SCANCODE_LEFT_SHIFT_SET2 0x0012
 #define SCANCODE_RIGHT_SHIFT_SET2 0x0059
 #define SCANCODE_BACKSPACE_SET2 0x0066
 #define SCANCODE_DELETE_SET2 0xe071
+#define SCANCODE_LOCK_KEY_SET2 0x002f
+#define SCANCODE_SCREENLOCK_SET2 0xe05d
 
 static bool left_shift, right_shift;
 static uint16_t top_row_sent[MAX_TOP_ROW_KEYS];
@@ -96,6 +105,11 @@ __override enum ec_error_list keyboard_scancode_callback(uint16_t *make_code,
 {
 	uint16_t code = *make_code;
 	int i;
+
+	if (code == SCANCODE_LOCK_KEY_SET2) {
+		code = SCANCODE_SCREENLOCK_SET2;
+		*make_code = code;
+	}
 
 	if (code == SCANCODE_LEFT_WIN) {
 		if (pressed) {
