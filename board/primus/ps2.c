@@ -4,7 +4,6 @@
  */
 
 #include "cbi_ssfc.h"
-#include "chipset.h"
 #include "gpio.h"
 #include "hooks.h"
 #include "keyboard_8042.h"
@@ -54,57 +53,16 @@ static void enable_ps2(void)
 }
 DECLARE_DEFERRED(enable_ps2);
 
-static void ps2_pins_low(void)
+static void disable_ps2(void)
 {
 	gpio_set_flags(GPIO_EC_PS2_SCL_TPAD, GPIO_ODR_LOW);
 	gpio_set_flags(GPIO_EC_PS2_SDA_TPAD, GPIO_ODR_LOW);
 	gpio_set_alternate_function(GPIO_PORT_6, BIT(2) | BIT(3),
 				    GPIO_ALT_FUNC_NONE);
-}
-
-static void disable_ps2(void)
-{
-	ps2_pins_low();
 	/* make sure PLTRST# goes high and re-enable PS2.*/
 	hook_call_deferred(&enable_ps2_data, 2 * SECOND);
 }
 DECLARE_HOOK(HOOK_CHIPSET_RESET, disable_ps2, HOOK_PRIO_DEFAULT);
-
-/*
- * The reset hook above is the only place Google's code enables PS2, and it
- * runs on an assertion of PLTRST# the EC sees. An EC that has just booted
- * (power-on, a reset after a new RW from software sync, battery cutoff)
- * never sees one: the AP comes up with PLTRST# already asserted, and the
- * EC only sees it go away. The pins then stay low GPIOs from gpio.inc for
- * the whole boot: the trackpoint is dead, and the AP firmware's PS/2 code
- * stalls on an aux device that cannot answer, so the keyboard fails in
- * edk2 and its time crawls (found on the C14 2026-10-14; a warm reboot
- * cured it, the reset hook having run).
- *
- * So also enable PS2 two seconds after the AP powers on, and at EC init when
- * the AP is already on (software sync jumps to RW mid-boot, after the
- * startup hook ran in RO), and hold the pins low again at shutdown, which
- * keeps the touchpad's AVDD at 0V while the AP is off, as above intends.
- */
-static void ps2_chipset_startup(void)
-{
-	hook_call_deferred(&enable_ps2_data, 2 * SECOND);
-}
-DECLARE_HOOK(HOOK_CHIPSET_STARTUP, ps2_chipset_startup, HOOK_PRIO_DEFAULT);
-
-static void ps2_chipset_shutdown(void)
-{
-	hook_call_deferred(&enable_ps2_data, -1);
-	ps2_pins_low();
-}
-DECLARE_HOOK(HOOK_CHIPSET_SHUTDOWN, ps2_chipset_shutdown, HOOK_PRIO_DEFAULT);
-
-static void ps2_init_ap_on(void)
-{
-	if (chipset_in_state(CHIPSET_STATE_ON))
-		hook_call_deferred(&enable_ps2_data, 2 * SECOND);
-}
-DECLARE_HOOK(HOOK_INIT, ps2_init_ap_on, HOOK_PRIO_DEFAULT + 1);
 
 static void ps2_transmit(uint8_t cmd)
 {
