@@ -16,10 +16,16 @@ const struct pwm_t pwm_channels[] = {
 		.flags = PWM_CONFIG_ACTIVE_LOW | PWM_CONFIG_DSLEEP,
 		.freq = 4800,
 	},
+	/*
+	 * The lid logo and the power LED breathe in suspend, so they run from
+	 * the 32.768 kHz clock (PWM_CONFIG_DSLEEP), which gives 32768 / freq
+	 * duty steps: 6 at the 4800 Hz the other LEDs use, which made the
+	 * breathing visibly steppy. 512 Hz gives 64, still well above flicker.
+	 */
 	[PWM_CH_TKP_A_LED_N] = {
 		.channel = 1,
 		.flags = PWM_CONFIG_DSLEEP,
-		.freq = 4800,
+		.freq = 512,
 	},
 	[PWM_CH_LED1_AMBER] = {
 		.channel = 2,
@@ -45,7 +51,7 @@ const struct pwm_t pwm_channels[] = {
 	[PWM_CH_LED4] = {
 		.channel = 7,
 		.flags = PWM_CONFIG_ACTIVE_LOW | PWM_CONFIG_DSLEEP,
-		.freq = 4800,
+		.freq = 512,
 	},
 };
 BUILD_ASSERT(ARRAY_SIZE(pwm_channels) == PWM_CH_COUNT);

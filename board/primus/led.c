@@ -28,8 +28,7 @@
 #define LED_ON_LVL 100
 #define LED_OFF_LVL 0
 #define LED_BAT_S3_OFF_TIME_MS 3000
-#define LED_BAT_S3_TICK_MS 50
-#define LED_BAT_S3_PWM_RESCALE 5
+#define LED_BAT_S3_TICK_MS 25
 #define LED_TOTAL_TICKS 6
 #define TICKS_STEP1_BRIGHTER 0
 #define TICKS_STEP2_DIMMER (1000 / LED_BAT_S3_TICK_MS)
@@ -111,6 +110,29 @@ static void led_set_duty_auto(int duty)
 		pwm_set_duty(PWM_CH_LED4, duty);
 	if (led_auto_control_is_enabled(LOGO_LED))
 		pwm_set_duty(PWM_CH_TKP_A_LED_N, duty);
+}
+
+/*
+ * The suspend breathing ramp, one entry per tick from off to full, as raw
+ * duty (0-0xffff): 65535 * (i / 40)^2.2. Equal steps in duty look like a
+ * fast rise and a long plateau, because the eye's response is roughly a
+ * power law; a gamma curve makes the brightness look like it changes at an
+ * even rate. The PWM's 64 steps (pwm.c) resolve 33 distinct levels of it.
+ */
+static const uint16_t suspend_ramp[TICKS_STEP2_DIMMER + 1] = {
+	0,     20,    90,    220,   413,   676,   1009,  1416,  1900,
+	2462,  3104,  3828,  4636,  5529,  6508,  7574,  8730,  9975,
+	11312, 12741, 14263, 15879, 17590, 19397, 21301, 23303, 25403,
+	27602, 29901, 32301, 34802, 37406, 40112, 42921, 45835, 48853,
+	51976, 55206, 58542, 61985, 65535,
+};
+
+static void led_set_raw_duty_auto(uint16_t duty)
+{
+	if (led_auto_control_is_enabled(EC_LED_ID_POWER_LED))
+		pwm_set_raw_duty(PWM_CH_LED4, duty);
+	if (led_auto_control_is_enabled(LOGO_LED))
+		pwm_set_raw_duty(PWM_CH_TKP_A_LED_N, duty);
 }
 
 void led_set_color_power(int onoff_status)
@@ -202,22 +224,17 @@ static void suspend_led_update(void)
 			break;
 
 		/* 1s gradual on, 1s gradual off, 3s off */
+		/*
+		 * The A-cover logo and the power button LED breathe together,
+		 * each while the EC controls it: up the ramp over a second,
+		 * down it over the next.
+		 */
 		if (tick <= TICKS_STEP2_DIMMER) {
-			/* increase 5 duty every 50ms until PWM=100
-			 * enter here 20 times, total duartion is 1sec
-			 * The A-cover logo and the power button LED breathe
-			 * together, each while the EC controls it.
-			 */
-			led_set_duty_auto(tick * LED_BAT_S3_PWM_RESCALE);
+			led_set_raw_duty_auto(suspend_ramp[tick]);
 			crec_msleep(LED_BAT_S3_TICK_MS);
 		} else if (tick <= TICKS_STEP3_OFF) {
-			/* decrease 5 duty every 50ms until PWM=0
-			 * enter here 20 times, total duartion is 1sec
-			 * The A-cover logo and the power button LED breathe
-			 * together, each while the EC controls it.
-			 */
-			led_set_duty_auto((TICKS_STEP3_OFF - tick) *
-					  LED_BAT_S3_PWM_RESCALE);
+			led_set_raw_duty_auto(
+				suspend_ramp[TICKS_STEP3_OFF - tick]);
 			crec_msleep(LED_BAT_S3_TICK_MS);
 		} else {
 			tick = TICKS_STEP1_BRIGHTER;
