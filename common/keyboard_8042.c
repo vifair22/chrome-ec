@@ -1420,6 +1420,22 @@ static void keyboard_restore_state(void)
 }
 DECLARE_HOOK(HOOK_INIT, keyboard_restore_state, HOOK_PRIO_DEFAULT);
 
+#ifdef CONFIG_KEYBOARD_8042_ENABLED_AT_HOST_RESET
+/*
+ * A sysjump carries the keystroke setting across, and the RO image's is
+ * always off, so a hook at init is too early to decide: the AP's own reset
+ * is when a real keyboard's state starts over.
+ */
+static void keyboard_enable_at_host_reset(void)
+{
+	keystroke_enable(1);
+}
+DECLARE_HOOK(HOOK_CHIPSET_STARTUP, keyboard_enable_at_host_reset,
+	     HOOK_PRIO_DEFAULT);
+DECLARE_HOOK(HOOK_CHIPSET_RESET, keyboard_enable_at_host_reset,
+	     HOOK_PRIO_DEFAULT);
+#endif
+
 #if defined(CONFIG_POWER_BUTTON) && !defined(CONFIG_MKBP_INPUT_DEVICES)
 /**
  * Handle power button changing state.

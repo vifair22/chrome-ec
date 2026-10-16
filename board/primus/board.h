@@ -96,6 +96,12 @@
 #define CONFIG_KEYBOARD_REFRESH_ROW3
 /* The C14 layout: Shift flips the top row, Search taps Caps (keyboard.c) */
 #define CONFIG_KEYBOARD_SCANCODE_CALLBACK
+/*
+ * Our edk2 (UefiPayloadPkg, fast PS/2 detection) never enables keystrokes,
+ * so without this the internal keyboard is dead in setup and the boot
+ * station after every EC reset, until Linux has enabled it once.
+ */
+#define CONFIG_KEYBOARD_8042_ENABLED_AT_HOST_RESET
 
 /* I2C Bus Configuration */
 

@@ -3193,6 +3193,16 @@
 #undef CONFIG_KEYBOARD_PROTOCOL_8042
 
 /*
+ * Enable keystrokes whenever the AP powers on or its platform reset is
+ * asserted, as a real AT keyboard is after its self-test, instead of
+ * leaving them as the last host set them (off after an EC reset). For
+ * boot firmware that never sends Enable (0xF4) or the controller's 0xAE,
+ * such as edk2's UefiPayloadPkg with PcdFastPS2Detection, whose keyboard is
+ * otherwise dead after an EC reset until an OS has enabled it once.
+ */
+#undef CONFIG_KEYBOARD_8042_ENABLED_AT_HOST_RESET
+
+/*
  * Enable code for chromeos vivaldi keyboard (standard for new chromeos devices)
  * This config only takes effect if CONFIG_KEYBOARD_PROTOCOL_8042 is selected. A
  * chromeos device is Vivaldi compatible if the keyboard matrix complies with:
