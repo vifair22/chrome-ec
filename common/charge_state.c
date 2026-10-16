@@ -186,6 +186,12 @@ test_export_static bool battery_sustainer_enabled(void)
 	return sustain_soc.lower != -1 && sustain_soc.upper != -1;
 }
 
+bool battery_sustainer_holding(void)
+{
+	return battery_sustainer_enabled() &&
+	       charge_get_display_charge() / 10 >= sustain_soc.lower;
+}
+
 static int battery_sustainer_set(int8_t lower, int8_t upper)
 {
 	if (lower == -1 || upper == -1) {

@@ -79,6 +79,18 @@ static void led_set_color_battery(enum ec_led_colors color)
 
 static void led_set_battery(void)
 {
+	/*
+	 * On AC with the battery held at the host's charge limit (the battery
+	 * sustainer, e.g. 75-80%), show white, as for a full battery, through
+	 * the sustainer's idle, top-up and discharge phases alike. Google's
+	 * code below shows amber for charging under 90% and leaves the LED
+	 * as it was in idle, so a capped battery stayed amber for good.
+	 */
+	if (extpower_is_present() && battery_sustainer_holding()) {
+		led_set_color_battery(EC_LED_COLOR_WHITE);
+		return;
+	}
+
 	switch (led_pwr_get_state()) {
 	case LED_PWRS_CHARGE:
 		/*
@@ -96,6 +108,12 @@ static void led_set_battery(void)
 		break;
 	case LED_PWRS_CHARGE_NEAR_FULL:
 		led_set_color_battery(EC_LED_COLOR_WHITE);
+		break;
+	case LED_PWRS_IDLE:
+	case LED_PWRS_FORCED_IDLE:
+		/* On AC and not charging: as charged as it will get. */
+		if (extpower_is_present())
+			led_set_color_battery(EC_LED_COLOR_WHITE);
 		break;
 	default:
 		/* Other states don't alter LED behavior */

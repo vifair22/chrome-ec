@@ -124,6 +124,13 @@ struct sustain_soc {
 enum led_pwr_state led_pwr_get_state(void);
 
 /**
+ * Whether the battery sustainer is on and the charge is in its band or
+ * above it: the battery is as full as the host has asked for, whether the
+ * sustainer is idling, topping up to its upper limit or discharging on AC.
+ */
+bool battery_sustainer_holding(void);
+
+/**
  * Return current charge task state.
  */
 __test_only enum charge_state charge_get_state(void);
