@@ -424,7 +424,6 @@ __overridable int board_should_charger_bypass(void)
 int charge_request(bool use_curr, bool is_full)
 {
 	int r1 = EC_SUCCESS, r2 = EC_SUCCESS, r3 = EC_SUCCESS, r4 = EC_SUCCESS;
-	static int prev_volt, prev_curr;
 	bool should_bypass;
 	int voltage = 0, current = 0;
 
@@ -453,8 +452,23 @@ int charge_request(bool use_curr, bool is_full)
 	}
 
 	if (curr.ac) {
-		if (prev_volt != voltage || prev_curr != current)
+		/*
+		 * With no current requested, the NVDC voltage above follows
+		 * the battery's voltage reading, which flickers by a charger
+		 * step from one pass to the next: holding at a sustainer
+		 * limit logged a request twice a second. Log a change of
+		 * current always, and a voltage change only once it has moved
+		 * more than two steps from the voltage last logged.
+		 */
+		static int logged_volt, logged_curr;
+
+		if (logged_curr != current ||
+		    ABS(voltage - logged_volt) >
+			    2 * charger_get_info()->voltage_step) {
 			CPRINTS("%s(%dmV, %dmA)", __func__, voltage, current);
+			logged_volt = voltage;
+			logged_curr = current;
+		}
 	}
 
 	/*
@@ -524,16 +538,10 @@ int charge_request(bool use_curr, bool is_full)
 	if (r4 != EC_SUCCESS)
 		charge_problem(PR_SET_MODE, r4);
 
-	/*
-	 * Only update if the request worked, so we'll keep trying on failures.
-	 */
 	if (r1 || r2)
 		return r1 ? r1 : r2;
 	if (IS_ENABLED(CONFIG_OCPC) && r3)
 		return r3;
-
-	prev_volt = voltage;
-	prev_curr = current;
 
 	return EC_SUCCESS;
 }
