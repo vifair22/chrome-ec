@@ -152,6 +152,16 @@
 #define CONFIG_CHARGER_BQ25710_SENSE_RESISTOR_AC 10
 #undef CONFIG_CHARGER_INPUT_CURRENT_DERATE_PCT
 
+/*
+ * The display charge reaches 100% at a full pack, not at 97% of it. The
+ * sustainer compares the host's charge limits against the display charge, so
+ * with the default an upper limit of 100 stopped charging at 97% of the pack,
+ * which Linux (charge_now / charge_full) shows as 97%. The host decides how
+ * full the pack gets (thinkbatt), not a fixed reserve here.
+ */
+#undef CONFIG_BATT_HOST_FULL_FACTOR
+#define CONFIG_BATT_HOST_FULL_FACTOR 100
+
 /* PROCHOT defines */
 #define BATT_MAX_CONTINUE_DISCHARGE_WATT 66
 
