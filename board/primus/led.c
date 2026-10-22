@@ -29,6 +29,7 @@
 #define LED_OFF_LVL 0
 #define LED_BAT_S3_OFF_TIME_MS 3000
 #define LED_BAT_S3_TICK_MS 25
+#define LED_SUSPEND_STEP_MS HOOK_TICK_INTERVAL_MS
 #define LED_TOTAL_TICKS 6
 #define TICKS_STEP1_BRIGHTER 0
 #define TICKS_STEP2_DIMMER (1000 / LED_BAT_S3_TICK_MS)
@@ -229,8 +230,23 @@ static void led_tick(void)
 }
 DECLARE_HOOK(HOOK_TICK, led_tick, HOOK_PRIO_DEFAULT);
 
+/*
+ * The battery LED, from inside the suspend loop below. That loop holds this
+ * task for the whole of a suspend, so the 200 ms tick that normally updates
+ * the battery LED goes unhandled until resume: unplugging the charger in
+ * S0ix left it amber (or white) until the machine woke. Google's code has
+ * the same loop.
+ */
+static void suspend_battery_led(void)
+{
+	if (led_auto_control_is_enabled(EC_LED_ID_BATTERY_LED))
+		led_set_battery();
+}
+
 static void suspend_led_update(void)
 {
+	int waited;
+
 	while (1) {
 		tick++;
 
@@ -247,6 +263,7 @@ static void suspend_led_update(void)
 		 * each while the EC controls it: up the ramp over a second,
 		 * down it over the next.
 		 */
+		suspend_battery_led();
 		if (tick <= TICKS_STEP2_DIMMER) {
 			led_set_raw_duty_auto(suspend_ramp[tick]);
 			crec_msleep(LED_BAT_S3_TICK_MS);
@@ -256,7 +273,19 @@ static void suspend_led_update(void)
 			crec_msleep(LED_BAT_S3_TICK_MS);
 		} else {
 			tick = TICKS_STEP1_BRIGHTER;
-			crec_msleep(LED_BAT_S3_OFF_TIME_MS);
+			/*
+			 * The off phase in steps of the 200 ms tick, so the
+			 * battery LED follows a charger change and a resume
+			 * ends the loop within one step, not three seconds.
+			 */
+			for (waited = 0; waited < LED_BAT_S3_OFF_TIME_MS;
+			     waited += LED_SUSPEND_STEP_MS) {
+				if (!chipset_in_or_transitioning_to_state(
+					    CHIPSET_STATE_ANY_SUSPEND))
+					break;
+				suspend_battery_led();
+				crec_msleep(LED_SUSPEND_STEP_MS);
+			}
 		}
 	}
 }
