@@ -63,7 +63,7 @@ What is carried (`git log base..c14`):
   from. Tags are never moved or deleted once pushed.
 
 A kept image is one flashed for day-to-day use. It is built from its pushed
-tag by thinkpad-c14's `scripts/ec-build.sh` on binhost-builder, into
+tag by thinkpad-c14's `scripts/ec-build.sh` on the build host, into
 `ec-images/<tag>/` there, and stored in the thinkpad-c14 repository under
 `firmware/ec/<date>[.N]/` (`ec.RW.flat`, `COMMIT`, `SHA256SUMS`, the build
 log); the C14's coreboot config points `CONFIG_EC_GOOGLE_CHROMEEC_FIRMWARE_FILE`
@@ -81,7 +81,7 @@ newer one only with a new kept tag, deliberately.
 MrChromebox's chrome-ec-build uses for brya, with a check that fails on any
 compiler warning. Output: `build/primus/RW/ec.RW.flat`. Do not run it by
 hand for an image that will be flashed: thinkpad-c14's `scripts/ec-build.sh`
-runs it on binhost-builder from a clean clone fetched from origin, with the
+runs it on the build host from a clean clone fetched from origin, with the
 abbreviation pinned, which is what makes an image reproducible from its
 commit.
 
